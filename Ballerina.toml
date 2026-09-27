@@ -12,11 +12,6 @@ readme = "README.md"
 [build-options]
 observabilityIncluded = true
 
-[[dependency]]
-org = "commons"
-name = "service_commons"
-version = "0.1.0"
-repository = "local"
 
 [[package.modules]]
 name = "chat.server"
