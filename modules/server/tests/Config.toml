@@ -1,0 +1,18 @@
+[commons.chat.server]
+port = 19101
+ns = "test"
+
+[commons.chat.server.auth]
+enforceScopes = true
+
+[commons.chat.server.db]
+url = "jdbc:h2:mem:chat-test;DB_CLOSE_DELAY=-1"
+
+[commons.chat.server.webhookDelivery]
+initialBackoff = 0.1
+retryInterval = 0.5
+
+[[commons.chat.server.webhooks]]
+participantId = "agent:triage"
+url = "http://localhost:19302/agent/events"
+secret = "s3cret"

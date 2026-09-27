@@ -1,0 +1,2 @@
+Ballerina Module `commons/chat`
+Copyright 2026 [Hasitha Aravinda](https://github.com/hasithaa)

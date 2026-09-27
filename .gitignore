@@ -1,0 +1,8 @@
+# Ballerina generates this directory during the compilation of a package.
+target/
+
+# Ballerina maintains the compiler-generated source code here.
+generated/
+
+# Development-time configuration values. tests/Config.toml is the test configuration and is committed.
+/Config.toml
