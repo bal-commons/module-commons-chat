@@ -15,22 +15,20 @@ import ballerinax/postgresql.driver as _;
 import commons/chat.server as _;
 ```
 
-Pin `commons/chat` and `commons/service_commons` with `repository = "local"` in `Ballerina.toml`.
-
 ```toml
 [commons.chat.server]
 port = 9101                 # default
 basePath = "/chat/v1"       # default
-ns = "tenant-app"
+ns = "my-app"
 
 [commons.chat.server.auth]
 enableJwtAuth = true
-jwksUrl = "https://localhost:8090/oauth2/jwks"
+jwksUrl = "https://idp.example.com/oauth2/jwks"
 enforceScopes = true
 
 [commons.chat.server.db]
 dbType = "POSTGRESQL"
-url = "jdbc:postgresql://localhost:5432/tenantapp"
+url = "jdbc:postgresql://localhost:5432/myapp"
 
 # The agent's webhook, registered at startup (updated in place on restart).
 [[commons.chat.server.webhooks]]
@@ -153,5 +151,3 @@ service /agent on new http:Listener(9090) {
 Tables `chat_conversation`, `chat_participant`, `chat_message`, plus `chat_webhook_subscription` and
 `chat_webhook_outbox`. A webhook event is queued in the same transaction as the change that caused it.
 Tested on H2. The SQL is kept portable to MySQL and PostgreSQL, but it hasn't been run against them yet.
-
-Design: `docs/demos/tenant-app/proposal.md` §8.
