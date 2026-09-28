@@ -8,6 +8,11 @@ positions, and webhooks registered per participant.
 | `chat` | Types and `Client`. Safe to import anywhere. |
 | `chat.server` | The HTTP service. Importing it starts the listener. |
 
+## UI components
+
+[`@bal-commons/chat-ui`](ui/README.md) (npm) provides `<commons-conversation-list>` and `<commons-conversation>`, live Web Components for this service, and an
+integration prompt to copy into a coding assistant.
+
 ## Run it inside an application
 
 ```ballerina
