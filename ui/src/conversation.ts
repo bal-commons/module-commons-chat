@@ -43,6 +43,7 @@ export class CommonsConversation extends LitElement {
   /** @internal */
   declare error?: string;
   private unsubscribe?: () => void;
+  private watching?: string;
   private typingTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
@@ -85,21 +86,29 @@ export class CommonsConversation extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribe?.();
-    if (this.baseUrl) {
-      this.unsubscribe = feedFor(this.baseUrl, this.auth).subscribe((change) => this.apply(change));
-    }
+    this.watch();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.watching = undefined;
+  }
+
+  // Subscribes to the service's feed once per base URL.
+  private watch(): void {
+    if (!this.baseUrl || !this.isConnected || this.watching === this.baseUrl) {
+      return;
+    }
+    this.unsubscribe?.();
+    this.watching = this.baseUrl;
+    this.unsubscribe = feedFor(this.baseUrl, this.auth).subscribe((change) => this.apply(change));
   }
 
   override updated(changed: Map<string, unknown>): void {
-    if (changed.has("baseUrl") && this.baseUrl && this.isConnected) {
-      this.unsubscribe?.();
-      this.unsubscribe = feedFor(this.baseUrl, this.auth).subscribe((change) => this.apply(change));
+    if (changed.has("baseUrl")) {
+      this.watch();
     }
     if ((changed.has("conversationId") || changed.has("baseUrl")) && this.baseUrl && this.conversationId) {
       void this.reload();
@@ -280,9 +289,9 @@ export class CommonsConversation extends LitElement {
   }
 
   private renderAttachment(ref: {name?: string; caseId?: string}): TemplateResult {
-    if (ref.caseId && customElements.get("commons-upload-case")) {
+    if (ref.caseId && this.attachmentsUrl && customElements.get("commons-upload-case")) {
       return html`<commons-upload-case class="card" base-url=${this.attachmentsUrl ?? ""} case-id=${ref.caseId}
-          .auth=${this.auth}></commons-upload-case>`;
+          .me=${this.me} .auth=${this.auth}></commons-upload-case>`;
     }
     return html`<div class="card"><strong>${ref.name ?? "Attachment"}</strong></div>`;
   }

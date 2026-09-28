@@ -5,7 +5,7 @@ import type {Conversation, Message} from "./types.js";
 export class ChatClient {
   constructor(readonly baseUrl: string, private readonly auth?: AuthAdapter) {}
 
-  listConversations(options: {status?: "OPEN" | "CLOSED"; cursor?: string; limit?: number} = {}):
+  listConversations(options: {status?: "OPEN" | "CLOSED"; correlationId?: string; cursor?: string; limit?: number} = {}):
       Promise<{items: Conversation[]; nextCursor?: string}> {
     return request(this.baseUrl, "/conversations", {auth: this.auth, query: {...options}});
   }

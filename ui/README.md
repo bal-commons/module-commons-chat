@@ -1,17 +1,21 @@
 # @bal-commons/chat-ui
 
-Web Components for the [commons chat service](../README.md): the caller's conversations, and a live
-conversation with replies streamed as they're written, answerable forms, a typing indicator and read marking.
-They're built with Lit and work in any framework or in plain HTML.
+Web Components for the [commons chat service](../README.md). They're built with Lit and work in any framework or
+in plain HTML.
 
 | Element | What it shows |
 |---|---|
-| `<commons-conversation-list>` | The caller's conversations, most recently active first, with unread counts |
-| `<commons-conversation>` | One conversation: messages, forms (JSON Schema), attachment cards, composer |
+| [`<commons-conversation-list>`](docs/commons-conversation-list.md) | The caller's conversations, most recently active first, with unread counts; status and `correlationId` filters, optional search |
+| [`<commons-conversation>`](docs/commons-conversation.md) | One conversation: streamed replies, forms (JSON Schema), upload cards, typing indicator, read marking, composer |
 
 Every element on the page shares one live connection per service URL. An `ATTACHMENT_REF` message renders
 `<commons-upload-case>` when [`@bal-commons/attachment-ui`](https://github.com/bal-commons/module-commons-attachment/tree/main/ui)
-is loaded, and a plain card otherwise.
+is loaded (set `attachments-url` too), and a plain card otherwise.
+
+Installing, authentication, the live model, proxies, theming, events and framework notes are in the
+[guide](https://github.com/bal-commons/module-commons-service-commons/blob/main/ui/docs/guide.md). For
+notifications, chats and files on one page, see
+[`<commons-hub>`](https://github.com/bal-commons/commons-hub-ui).
 
 ## Install
 
@@ -23,10 +27,15 @@ npm install @bal-commons/chat-ui
 <script type="module" src="https://cdn.jsdelivr.net/npm/@bal-commons/chat-ui@0.1/dist/chat-ui.bundle.js"></script>
 ```
 
+> The package is not yet published to npm, so the two lines above don't work yet. Until it is, build it locally:
+> `npm install && npm run build` here (after building `@bal-commons/ui-core` in `service-commons/ui` and linking
+> it with `npm link ../../service-commons/ui`), then either `npm link` this package into your app or copy
+> `dist/chat-ui.bundle.js` into your static files.
+
 ## Use
 
 ```html
-<commons-conversation-list id="list" base-url="/api/chat"></commons-conversation-list>
+<commons-conversation-list id="list" base-url="/api/chat" searchable></commons-conversation-list>
 <commons-conversation id="chat" base-url="/api/chat" attachments-url="/api/attachments"></commons-conversation>
 
 <script type="module">
@@ -42,37 +51,30 @@ npm install @bal-commons/chat-ui
 ```
 
 Authentication works as in `@bal-commons/notification-ui` (`bearer`, `devUser` or your own adapter, set with
-`configureAuth` or per element with `.auth`).
+`configureAuth` or per element with `.auth`); see
+[authentication](https://github.com/bal-commons/module-commons-service-commons/blob/main/ui/docs/guide.md#authentication).
 
 ## Reference
 
-### `<commons-conversation-list>`
+Each element has a full reference page: attributes, events and `detail` shapes, methods, CSS parts, slots, live
+behaviour, permissions and recipes.
 
-| Attribute / property | |
-|---|---|
-| `base-url` | Chat service base URL (required) |
-| `selected` | ID of the highlighted conversation |
-| `.me` | The caller's user ID, left out of the "with …" line |
-
-Events: `commons-conversation-select` (`detail.conversation`). Method: `reload()`. CSS parts: `list`, `item`.
-
-### `<commons-conversation>`
-
-| Attribute / property | |
-|---|---|
-| `base-url` | Chat service base URL (required) |
-| `conversation-id` | The conversation to show (required) |
-| `attachments-url` | Attachment service base URL, for upload cards |
-| `.me` | The caller's user ID: their messages align right, and read marking applies |
-
-Events: `commons-message-sent`, `commons-form-submitted` (`detail.message`). Method: `reload()`.
-CSS parts: `header`, `messages`, `message`, `composer`.
+- [`<commons-conversation-list>`](docs/commons-conversation-list.md): `base-url`, `me`, `selected`, `status`,
+  `correlation-id`, `searchable`; event `commons-conversation-select` (`detail.conversation`); method `reload()`;
+  parts `search`, `list`, `item`, `empty`; slot `empty`.
+- [`<commons-conversation>`](docs/commons-conversation.md): `base-url`, `conversation-id`, `me`, `attachments-url`;
+  events `commons-message-sent`, `commons-form-submitted` (`detail.message`); method `reload()`; parts `header`,
+  `messages`, `message`, `composer`.
 
 Forms: a `FORM` message's `content.schema` is a flat JSON Schema. The supported fields are `string` (with
 `format: "date"` or `enum`), `number`/`integer` and `boolean`. A form is answered once; the answer is shown in the
 form.
 
-Theme: the `--bc-*` custom properties, as in `@bal-commons/notification-ui`.
+Theme: the `--bc-*` custom properties; see
+[theming](https://github.com/bal-commons/module-commons-service-commons/blob/main/ui/docs/guide.md#theming).
+
+`ChatClient(baseUrl, auth?)` gives typed calls (`listConversations`, `getConversation`, `history`, `sendText`,
+`submitForm`, `markRead`, `typing`) and `chatFeed(baseUrl, auth?)` the shared live feed, for custom views.
 
 ## What the service side needs
 
@@ -83,15 +85,18 @@ CORS for cross-origin pages (`corsAllowOrigins`), and a proxy that doesn't buffe
 
 ```text
 Add chat to [my app] using the npm package @bal-commons/chat-ui (Lit Web Components; API:
-node_modules/@bal-commons/chat-ui/dist/custom-elements.json and its README).
+node_modules/@bal-commons/chat-ui/dist/custom-elements.json, its README and docs/).
 
 - The chat service is at [base URL, e.g. /api/chat]; the attachment service, if used, at [/api/attachments]
-  (then also install @bal-commons/attachment-ui so upload cards render). Proxy both without buffering /stream.
+  (then also install @bal-commons/attachment-ui so upload cards render, and set attachments-url on
+  <commons-conversation>). Proxy both without buffering /stream.
 - Authentication: configureAuth(bearer(getToken, onUnauthorized)) once at startup, with [how my app gets the
   access token] and [what it does on a 401].
-- Show <commons-conversation-list> in [the sidebar] and <commons-conversation> in [the main pane]. On
-  commons-conversation-select, set conversation-id on the conversation element. Set .me on both to [the signed-in
-  user's ID].
+- Show <commons-conversation-list searchable> in [the sidebar] and <commons-conversation> in [the main pane],
+  giving the conversation element a fixed height. On commons-conversation-select, set conversation-id on the
+  conversation element. Set .me on both to [the signed-in user's ID].
+- On [detail pages of my business objects], show <commons-conversation-list correlation-id="[the object's ID]">
+  for the conversation about that object.
 - Match the design with the --bc-* CSS custom properties on :root; keep dark mode.
 - Do not re-implement message fetching, streaming or read tracking; the components do it.
 ```

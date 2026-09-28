@@ -9,6 +9,9 @@ import type {Conversation} from "./types.js";
  * @fires commons-conversation-select - A conversation was chosen; `detail.conversation`.
  * @csspart list - The conversation list.
  * @csspart item - One conversation.
+ * @csspart search - The search box (with `searchable`).
+ * @csspart empty - The empty state.
+ * @slot empty - Replaces the "No conversations." text.
  */
 export class CommonsConversationList extends LitElement {
   static override properties = {
@@ -16,6 +19,11 @@ export class CommonsConversationList extends LitElement {
     auth: {attribute: false},
     selected: {type: String, reflect: true},
     me: {type: String},
+    status: {type: String},
+    correlationId: {type: String, attribute: "correlation-id"},
+    searchable: {type: Boolean},
+    query: {state: true, attribute: false},
+    loaded: {state: true, attribute: false},
     items: {state: true, attribute: false},
     error: {state: true, attribute: false}
   };
@@ -26,6 +34,16 @@ export class CommonsConversationList extends LitElement {
   declare selected?: string;
   /** The caller's user ID, left out of the "with …" line. */
   declare me?: string;
+  /** Shows only `OPEN` or `CLOSED` conversations; all when unset. */
+  declare status?: "OPEN" | "CLOSED";
+  /** Shows only the conversations about this business object. */
+  declare correlationId?: string;
+  /** Shows a search box that filters by title and participant. */
+  declare searchable: boolean;
+  /** @internal */
+  declare query: string;
+  /** @internal */
+  declare loaded: boolean;
   /** @internal */
   declare items: Conversation[];
   /** @internal */
@@ -37,11 +55,14 @@ export class CommonsConversationList extends LitElement {
     super();
     this.baseUrl = "";
     this.items = [];
+    this.searchable = false;
+    this.query = "";
+    this.loaded = false;
   }
 
   static override styles = [tokens, css`
     :host { display: block; }
-    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
     li { padding: 8px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }
     li:hover { background: var(--_surface); }
     li[aria-selected="true"] { border-color: var(--_accent); background: var(--_accent-soft); }
@@ -51,6 +72,8 @@ export class CommonsConversationList extends LitElement {
     .unread { background: var(--_accent); color: #fff; border-radius: 10px; padding: 0 7px; font-size: 11px; }
     .closed { font-size: 11px; color: var(--_muted); }
     .meta { font-size: 12px; color: var(--_muted); }
+    input[type=search] { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 6px 8px;
+      margin-bottom: 6px; border: 1px solid var(--_border); border-radius: 6px; background: var(--_bg); color: var(--_fg); }
     .empty, .error { padding: 12px; font-size: 13px; color: var(--_muted); }
     .error { color: var(--_error); }
   `];
@@ -70,13 +93,17 @@ export class CommonsConversationList extends LitElement {
   override updated(changed: Map<string, unknown>): void {
     if (changed.has("baseUrl") && this.baseUrl && this.isConnected) {
       this.start();
+    } else if ((changed.has("status") || changed.has("correlationId")) && this.baseUrl && this.isConnected) {
+      void this.reload();
     }
   }
 
   async reload(): Promise<void> {
     try {
-      this.items = (await new ChatClient(this.baseUrl, this.auth).listConversations({limit: 50})).items;
+      this.items = (await new ChatClient(this.baseUrl, this.auth).listConversations({limit: 50,
+          status: this.status || undefined, correlationId: this.correlationId || undefined})).items;
       this.error = undefined;
+      this.loaded = true;
     } catch (e) {
       this.error = (e as Error).message;
     }
@@ -84,7 +111,7 @@ export class CommonsConversationList extends LitElement {
 
   private start(): void {
     this.unsubscribe?.();
-    // Conversation order and unread counts change with every message: refetch, at most once a second.
+    // Conversation order and unread counts change with every message: refetch, debounced by 300 ms.
     this.unsubscribe = feedFor(this.baseUrl, this.auth).subscribe((change) => {
       if (change.type !== "delta" && change.type !== "typing") {
         clearTimeout(this.pending);
@@ -104,13 +131,22 @@ export class CommonsConversationList extends LitElement {
     if (this.error) {
       return html`<div class="error" role="alert">${this.error}</div>`;
     }
-    if (!this.items.length) {
-      return html`<div class="empty">No conversations.</div>`;
+    const search = this.searchable ? html`<input type="search" part="search" placeholder="Search conversations"
+        aria-label="Search conversations" .value=${this.query}
+        @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; }}>` : nothing;
+    const others = (c: Conversation) => c.participants.filter((p) => p.participantId !== this.me)
+        .map((p) => p.displayName || p.participantId).join(", ");
+    const needle = this.query.trim().toLowerCase();
+    const shown = needle ? this.items.filter((c) => `${c.title ?? ""} ${c.correlationId} ${others(c)}`
+        .toLowerCase().includes(needle)) : this.items;
+    if (!this.loaded) {
+      return html`<div class="empty" role="status">Loading…</div>`;
     }
-    return html`<ul part="list" role="listbox" aria-label="Conversations">
-      ${this.items.map((c) => {
-        const others = c.participants.filter((p) => p.participantId !== this.me)
-            .map((p) => p.displayName || p.participantId).join(", ");
+    if (!shown.length) {
+      return html`${search}<div class="empty" part="empty"><slot name="empty">No conversations.</slot></div>`;
+    }
+    return html`${search}<ul part="list" role="listbox" aria-label="Conversations">
+      ${shown.map((c) => {
         return html`<li part="item" role="option" tabindex="0" aria-selected=${this.selected === c.id}
             @click=${() => this.select(c)} @keydown=${(e: KeyboardEvent) => e.key === "Enter" && this.select(c)}>
           <div class="top">
@@ -118,7 +154,7 @@ export class CommonsConversationList extends LitElement {
             ${c.status === "CLOSED" ? html`<span class="closed">closed</span>` : nothing}
             ${c.unread ? html`<span class="unread" aria-label="${c.unread} unread">${c.unread}</span>` : nothing}
           </div>
-          <div class="meta">with ${others} · <span title=${c.updatedAt}>${relativeTime(c.updatedAt)}</span></div>
+          <div class="meta">with ${others(c)} · <span title=${c.updatedAt}>${relativeTime(c.updatedAt)}</span></div>
         </li>`;
       })}
     </ul>`;
